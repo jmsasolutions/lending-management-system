@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lending Management System — Demo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f6f8; --card: #ffffff; --text: #1f2937; --muted: #6b7280;
+    --accent: #1d4ed8; --accent2: #047857; --danger: #b91c1c; --border: #e5e7eb;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 16px; }
+  header { margin-bottom: 20px; }
+  header h1 { margin: 0 0 4px; font-size: 20px; }
+  header p { margin: 0; color: var(--muted); font-size: 13px; }
+  .badge { display: inline-block; background: #fef3c7; color: #92400e; font-size: 11px; padding: 3px 8px; border-radius: 4px; margin-bottom: 8px; font-weight: 600; }
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 18px; }
+  .kpi { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  .kpi .label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .kpi .value { font-size: 20px; font-weight: 700; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-bottom: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; overflow-x: auto; }
+  .card h2 { font-size: 13px; margin: 0 0 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; }
+  .status-active { color: var(--accent); font-weight: 600; }
+  .status-paid { color: var(--accent2); font-weight: 600; }
+  .method-select { margin-bottom: 10px; }
+  select, input { font-size: 13px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; margin-right: 6px; margin-bottom: 6px; }
+  button { font-size: 13px; padding: 6px 12px; border: none; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
+  .calc-result { margin-top: 10px; font-size: 13px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px; }
+  canvas { max-height: 240px; }
+  footer { margin-top: 16px; font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="badge">DEMO — sample data only</div>
+  <h1>Lending Management System</h1>
+  <p>Self-contained HTML tracker — mobile responsive, ₱ formatting, five interest methods. Built from sample_data/loans_sample.csv.</p>
+</header>
+
+<div class="kpi-row" id="kpiRow"></div>
+
+<div class="grid">
+  <div class="card">
+    <h2>Active Loans</h2>
+    <table id="loansTable"></table>
+  </div>
+  <div class="card">
+    <h2>Capital by Investor</h2>
+    <canvas id="capitalChart"></canvas>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <h2>Interest Calculator</h2>
+  <div class="method-select">
+    <input id="principalInput" type="number" placeholder="Principal (₱)" value="10000">
+    <input id="rateInput" type="number" placeholder="Annual rate %" value="36">
+    <input id="termInput" type="number" placeholder="Term (months)" value="6">
+    <select id="methodSelect">
+      <option value="simple">Simple</option>
+      <option value="compound">Compound</option>
+      <option value="diminishing" selected>Diminishing Balance</option>
+      <option value="flat">Flat Rate</option>
+      <option value="add_on">Add-On</option>
+    </select>
+    <button onclick="calculate()">Calculate</button>
+  </div>
+  <div class="calc-result" id="calcResult"></div>
+</div>
+
+<footer>Lending Management System — jmsasolutions/lending-management-system (demo, fictional data)</footer>
+
+<script>
+// Mirrors sample_data/loans_sample.csv
+const loans = [
+  { id: 'L-0001', borrower: 'Borrower A', principal: 10000, rate: 36, term: 6, method: 'diminishing', totalPayable: 11050, balance: 4200, status: 'Active' },
+  { id: 'L-0002', borrower: 'Borrower B', principal: 5000, rate: 60, term: 3, method: 'flat', totalPayable: 5750, balance: 0, status: 'Paid' },
+  { id: 'L-0003', borrower: 'Borrower C', principal: 20000, rate: 24, term: 12, method: 'simple', totalPayable: 24800, balance: 12400, status: 'Active' },
+  { id: 'L-0004', borrower: 'Borrower D', principal: 8000, rate: 48, term: 4, method: 'add_on', totalPayable: 9280, balance: 2320, status: 'Active' },
+  { id: 'L-0005', borrower: 'Borrower E', principal: 15000, rate: 30, term: 6, method: 'compound', totalPayable: 17275, balance: 17275, status: 'Active' },
+];
+const investors = [
+  { id: 'INV-001', name: 'Investor A', capital: 30000 },
+  { id: 'INV-002', name: 'Investor B', capital: 18000 },
+  { id: 'INV-003', name: 'Investor C', capital: 12000 },
+];
+
+function peso(n) { return '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+// KPIs
+const totalPrincipal = loans.reduce((a, l) => a + l.principal, 0);
+const totalReceivable = loans.reduce((a, l) => a + l.balance, 0);
+const activeCount = loans.filter(l => l.status === 'Active').length;
+const totalCapital = investors.reduce((a, i) => a + i.capital, 0);
+document.getElementById('kpiRow').innerHTML = [
+  { label: 'Total Principal Out', value: peso(totalPrincipal) },
+  { label: 'Outstanding Receivables', value: peso(totalReceivable) },
+  { label: 'Active Loans', value: activeCount },
+  { label: 'Total Capital Pool', value: peso(totalCapital) },
+].map(k => `<div class="kpi"><div class="label">${k.label}</div><div class="value">${k.value}</div></div>`).join('');
+
+// Loans table
+const methodLabels = { simple: 'Simple', compound: 'Compound', diminishing: 'Diminishing', flat: 'Flat Rate', add_on: 'Add-On' };
+document.getElementById('loansTable').innerHTML = `
+  <tr><th>Loan</th><th>Principal</th><th>Method</th><th>Total Payable</th><th>Balance</th><th>Status</th></tr>
+  ${loans.map(l => `<tr>
+    <td>${l.id}</td>
+    <td>${peso(l.principal)}</td>
+    <td>${methodLabels[l.method]}</td>
+    <td>${peso(l.totalPayable)}</td>
+    <td>${peso(l.balance)}</td>
+    <td class="status-${l.status.toLowerCase()}">${l.status}</td>
+  </tr>`).join('')}
+`;
+
+// Capital chart
+new Chart(document.getElementById('capitalChart'), {
+  type: 'doughnut',
+  data: {
+    labels: investors.map(i => i.name),
+    datasets: [{ data: investors.map(i => i.capital), backgroundColor: ['#1d4ed8', '#047857', '#b45309'] }]
+  },
+  options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#6b7280' } } } }
+});
+
+// Interest calculator — mirrors the five methods implemented in Code.gs
+function computeTotalPayable(principal, ratePercent, termMonths, method) {
+  const r = ratePercent / 100;
+  switch (method) {
+    case 'simple':
+    case 'flat':
+    case 'add_on':
+      return principal + (principal * r * (termMonths / 12));
+    case 'compound': {
+      const monthlyRate = r / 12;
+      return principal * Math.pow(1 + monthlyRate, termMonths);
+    }
+    case 'diminishing': {
+      const monthlyRate = r / 12;
+      const monthlyPrincipal = principal / termMonths;
+      let balance = principal, totalInterest = 0;
+      for (let m = 0; m < termMonths; m++) {
+        totalInterest += balance * monthlyRate;
+        balance -= monthlyPrincipal;
+      }
+      return principal + totalInterest;
+    }
+  }
+}
+
+function calculate() {
+  const principal = Number(document.getElementById('principalInput').value) || 0;
+  const rate = Number(document.getElementById('rateInput').value) || 0;
+  const term = Number(document.getElementById('termInput').value) || 1;
+  const method = document.getElementById('methodSelect').value;
+
+  const total = computeTotalPayable(principal, rate, term, method);
+  const interest = total - principal;
+  const monthly = total / term;
+
+  document.getElementById('calcResult').innerHTML =
+    `<strong>${methodLabels[method]}</strong> — Total Payable: <strong>${peso(total)}</strong>` +
+    ` &nbsp;|&nbsp; Interest: ${peso(interest)}` +
+    ` &nbsp;|&nbsp; Approx. Monthly: ${peso(monthly)}`;
+}
+calculate();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,6 @@
+Loan ID,Borrower ID,Principal,Interest Rate %,Term (months),Interest Method,Disbursed Date,Total Payable,Balance,Status
+L-0001,B-001,10000,36,6,diminishing,2026-06-01,11050,4200,Active
+L-0002,B-002,5000,60,3,flat,2026-07-01,5750,0,Paid
+L-0003,B-003,20000,24,12,simple,2026-05-15,24800,12400,Active
+L-0004,B-004,8000,48,4,add_on,2026-07-10,9280,2320,Active
+L-0005,B-005,15000,30,6,compound,2026-06-20,17275,17275,Active
